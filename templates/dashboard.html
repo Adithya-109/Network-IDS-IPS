@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>Network IDS Dashboard</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static',
+          filename='style.css') }}">
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Network Intrusion Detection System</h1>
+
+    <p class="subtitle">
+        Real-Time Network Security Monitoring
+    </p>
+
+
+    <!-- STATISTICS -->
+
+    <div class="cards">
+
+        <div class="card">
+            <h3>Total Threats</h3>
+            <p id="total">
+                {{ statistics.total }}
+            </p>
+        </div>
+
+
+        <div class="card">
+            <h3>Port Scans</h3>
+            <p id="port_scans">
+                {{ statistics.port_scans }}
+            </p>
+        </div>
+
+
+        <div class="card">
+            <h3>SYN Floods</h3>
+            <p id="syn_floods">
+                {{ statistics.syn_floods }}
+            </p>
+        </div>
+
+
+        <div class="card">
+            <h3>High Severity</h3>
+            <p id="high">
+                {{ statistics.high }}
+            </p>
+        </div>
+
+    </div>
+
+
+    <!-- EVENTS -->
+
+    <h2>Detected Threats</h2>
+
+    <table>
+
+        <thead>
+
+        <tr>
+
+            <th>Time</th>
+            <th>Source IP</th>
+            <th>Destination IP</th>
+            <th>Attack</th>
+            <th>Severity</th>
+            <th>Description</th>
+
+        </tr>
+
+        </thead>
+
+
+        <tbody id="events">
+
+        {% for event in events %}
+
+        <tr>
+
+            <td>{{ event.timestamp }}</td>
+
+            <td>{{ event.source_ip }}</td>
+
+            <td>{{ event.destination_ip }}</td>
+
+            <td>{{ event.attack_type }}</td>
+
+            <td>
+
+                <span class="severity
+                    {{ event.severity|lower }}">
+
+                    {{ event.severity }}
+
+                </span>
+
+            </td>
+
+            <td>{{ event.description }}</td>
+
+        </tr>
+
+        {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+
+<script src="{{ url_for('static',
+filename='dashboard.js') }}">
+</script>
+
+</body>
+
+</html>
