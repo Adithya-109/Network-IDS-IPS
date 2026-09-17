@@ -1,100 +1,75 @@
-from flask import Flask, render_template, jsonify
+"""Flask backend for the NIDS dashboard. Serves the UI and a small JSON API
+that the dashboard polls. Packet capture runs on a background thread
+(sniffer.SnifferService) so it never blocks these request handlers."""
 
-from database import (
-    init_database,
-    get_events,
-    get_statistics
-)
+from flask import Flask, jsonify, render_template
 
-import threading
-
-from packet_sniffer import start_sniffer
-
+import database
+import config
+from sniffer import sniffer_service
 
 app = Flask(__name__)
 
 
-# =========================
-# DATABASE
-# =========================
-
-init_database()
-
-
-# =========================
-# START PACKET SNIFFER
-# =========================
-
-def run_sniffer():
-
-    try:
-        start_sniffer()
-
-    except Exception as e:
-
-        print("Sniffer error:", e)
-
-
-sniffer_thread = threading.Thread(
-    target=run_sniffer,
-    daemon=True
-)
-
-sniffer_thread.start()
-
-
-# =========================
-# DASHBOARD
-# =========================
-
 @app.route("/")
 def dashboard():
+    return render_template("dashboard.html")
 
-    statistics = get_statistics()
-    events = get_events()
 
-    return render_template(
-        "dashboard.html",
-        statistics=statistics,
-        events=events
+@app.route("/api/status")
+def api_status():
+    stats = sniffer_service.get_stats()
+    return jsonify({"running": stats["running"], "error": stats["error"]})
+
+
+@app.route("/api/start", methods=["POST"])
+def api_start():
+    ok, message = sniffer_service.start()
+    return jsonify({"ok": ok, "message": message})
+
+
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    ok, message = sniffer_service.stop()
+    return jsonify({"ok": ok, "message": message})
+
+
+@app.route("/api/stats")
+def api_stats():
+    return jsonify(sniffer_service.get_stats())
+
+
+@app.route("/api/alerts")
+def api_alerts():
+    return jsonify(
+        {
+            "alerts": database.get_recent_alerts(limit=100),
+            "counts": database.get_alert_counts(),
+        }
     )
 
 
-# =========================
-# EVENTS API
-# =========================
-
-@app.route("/api/events")
-def events_api():
-
-    events = get_events()
-
-    return jsonify([
-        dict(event)
-        for event in events
-    ])
+@app.route("/api/alerts/clear", methods=["POST"])
+def api_alerts_clear():
+    database.clear_alerts()
+    return jsonify({"ok": True})
 
 
-# =========================
-# STATISTICS API
-# =========================
+@app.route("/api/config")
+def api_config():
+    return jsonify(
+        {
+            "port_scan_threshold": config.PORT_SCAN_THRESHOLD,
+            "port_scan_window": config.PORT_SCAN_WINDOW,
+            "syn_flood_threshold": config.SYN_FLOOD_THRESHOLD,
+            "syn_flood_window": config.SYN_FLOOD_WINDOW,
+            "icmp_flood_threshold": config.ICMP_FLOOD_THRESHOLD,
+            "icmp_flood_window": config.ICMP_FLOOD_WINDOW,
+            "suspicious_ports": config.SUSPICIOUS_PORTS,
+        }
+    )
 
-@app.route("/api/statistics")
-def statistics_api():
-
-    statistics = get_statistics()
-
-    return jsonify(statistics)
-
-
-# =========================
-# RUN FLASK
-# =========================
 
 if __name__ == "__main__":
-
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=False
-    )
+    database.init_db()
+    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)

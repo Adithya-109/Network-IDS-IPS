@@ -1,120 +1,104 @@
+"""Threshold-based detection rules. Pure logic, no Scapy/network code here --
+this makes it easy to reason about and to unit-test independently of packet
+capture. sniffer.py feeds it one parsed packet's fields at a time."""
+
 import time
-from collections import defaultdict
-from database import add_event
+from collections import defaultdict, deque
+
+import config
 
 
-# =========================
-# PORT SCAN DETECTION
-# =========================
+class DetectionEngine:
+    def __init__(self):
+        # src_ip -> deque[(timestamp, dst_port)]
+        self.port_scan_map = defaultdict(deque)
+        # src_ip -> deque[timestamp]  (TCP SYN packets)
+        self.syn_map = defaultdict(deque)
+        # src_ip -> deque[timestamp]  (ICMP echo requests)
+        self.icmp_map = defaultdict(deque)
+        # (src_ip, detection_type) -> last alert timestamp
+        self._last_alert = {}
 
-port_activity = defaultdict(list)
+    def _cooldown_ok(self, key, now):
+        last = self._last_alert.get(key, 0)
+        if now - last >= config.ALERT_COOLDOWN:
+            self._last_alert[key] = now
+            return True
+        return False
 
-PORT_SCAN_THRESHOLD = 10
-PORT_SCAN_TIME_WINDOW = 10
+    @staticmethod
+    def _trim(dq, now, window):
+        while dq and now - dq[0][0] > window:
+            dq.popleft()
 
+    @staticmethod
+    def _trim_flat(dq, now, window):
+        while dq and now - dq[0] > window:
+            dq.popleft()
 
-def detect_port_scan(packet):
+    def check_port_scan(self, src_ip, dport, now):
+        dq = self.port_scan_map[src_ip]
+        dq.append((now, dport))
+        self._trim(dq, now, config.PORT_SCAN_WINDOW)
+        distinct_ports = {p for _, p in dq}
+        if len(distinct_ports) >= config.PORT_SCAN_THRESHOLD:
+            if self._cooldown_ok((src_ip, "PORT_SCAN"), now):
+                return {
+                    "detection_type": "Port Scan",
+                    "severity": "High",
+                    "description": (
+                        f"{src_ip} contacted {len(distinct_ports)} distinct ports "
+                        f"within {config.PORT_SCAN_WINDOW}s (threshold: "
+                        f"{config.PORT_SCAN_THRESHOLD})"
+                    ),
+                }
+        return None
 
-    if not packet.haslayer("IP"):
-        return
+    def check_syn_flood(self, src_ip, now):
+        dq = self.syn_map[src_ip]
+        dq.append(now)
+        self._trim_flat(dq, now, config.SYN_FLOOD_WINDOW)
+        if len(dq) >= config.SYN_FLOOD_THRESHOLD:
+            if self._cooldown_ok((src_ip, "SYN_FLOOD"), now):
+                return {
+                    "detection_type": "SYN Flood",
+                    "severity": "High",
+                    "description": (
+                        f"{src_ip} sent {len(dq)} TCP SYN packets within "
+                        f"{config.SYN_FLOOD_WINDOW}s (threshold: "
+                        f"{config.SYN_FLOOD_THRESHOLD})"
+                    ),
+                }
+        return None
 
-    if not packet.haslayer("TCP"):
-        return
+    def check_icmp_flood(self, src_ip, now):
+        dq = self.icmp_map[src_ip]
+        dq.append(now)
+        self._trim_flat(dq, now, config.ICMP_FLOOD_WINDOW)
+        if len(dq) >= config.ICMP_FLOOD_THRESHOLD:
+            if self._cooldown_ok((src_ip, "ICMP_FLOOD"), now):
+                return {
+                    "detection_type": "ICMP Flood",
+                    "severity": "Medium",
+                    "description": (
+                        f"{src_ip} sent {len(dq)} ICMP echo requests within "
+                        f"{config.ICMP_FLOOD_WINDOW}s (threshold: "
+                        f"{config.ICMP_FLOOD_THRESHOLD})"
+                    ),
+                }
+        return None
 
-    source_ip = packet["IP"].src
-    destination_ip = packet["IP"].dst
-    destination_port = packet["TCP"].dport
-
-    current_time = time.time()
-
-    key = (source_ip, destination_ip)
-
-    port_activity[key].append(
-        (current_time, destination_port)
-    )
-
-    # Remove old entries
-    port_activity[key] = [
-        item for item in port_activity[key]
-        if current_time - item[0] <= PORT_SCAN_TIME_WINDOW
-    ]
-
-    unique_ports = set(
-        port for _, port in port_activity[key]
-    )
-
-    if len(unique_ports) >= PORT_SCAN_THRESHOLD:
-
-        add_event(
-            source_ip,
-            destination_ip,
-            "Port Scan",
-            "High",
-            f"Multiple ports scanned: {sorted(unique_ports)}"
-        )
-
-        # Reset after detection
-        port_activity[key].clear()
-
-
-# =========================
-# SYN FLOOD DETECTION
-# =========================
-
-syn_activity = defaultdict(list)
-
-SYN_THRESHOLD = 50
-SYN_TIME_WINDOW = 5
-
-
-def detect_syn_flood(packet):
-
-    if not packet.haslayer("IP"):
-        return
-
-    if not packet.haslayer("TCP"):
-        return
-
-    tcp_flags = packet["TCP"].flags
-
-    # SYN packet without ACK
-    if tcp_flags == "S":
-
-        source_ip = packet["IP"].src
-        destination_ip = packet["IP"].dst
-
-        current_time = time.time()
-
-        key = (source_ip, destination_ip)
-
-        syn_activity[key].append(current_time)
-
-        # Remove old entries
-        syn_activity[key] = [
-            t for t in syn_activity[key]
-            if current_time - t <= SYN_TIME_WINDOW
-        ]
-
-        if len(syn_activity[key]) >= SYN_THRESHOLD:
-
-            add_event(
-                source_ip,
-                destination_ip,
-                "SYN Flood",
-                "Critical",
-                f"Detected {len(syn_activity[key])} SYN packets "
-                f"within {SYN_TIME_WINDOW} seconds"
-            )
-
-            syn_activity[key].clear()
-
-
-# =========================
-# MAIN DETECTOR
-# =========================
-
-def analyze_packet(packet):
-
-    detect_port_scan(packet)
-
-    detect_syn_flood(packet)
+    def check_suspicious_port(self, src_ip, dport, now):
+        if dport in config.SUSPICIOUS_PORTS:
+            key = (src_ip, f"SUSPICIOUS_PORT_{dport}")
+            if self._cooldown_ok(key, now):
+                service = config.SUSPICIOUS_PORTS[dport]
+                return {
+                    "detection_type": "Suspicious Port Activity",
+                    "severity": "Low",
+                    "description": (
+                        f"{src_ip} sent traffic to port {dport} ({service}) -- "
+                        "commonly targeted service, not automatically a confirmed attack"
+                    ),
+                }
+        return None

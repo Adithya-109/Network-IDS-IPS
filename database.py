@@ -1,99 +1,80 @@
+"""SQLite storage for alerts. Every function opens its own short-lived
+connection so calls from the sniffer thread and the Flask request threads
+never share a connection object (sqlite3 connections aren't thread-safe)."""
+
 import sqlite3
-from datetime import datetime
+from contextlib import closing
 
-DATABASE = "ids.db"
+import config
 
 
-def get_connection():
-    conn = sqlite3.connect(DATABASE)
+def _get_conn():
+    conn = sqlite3.connect(config.DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def init_database():
-    conn = get_connection()
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            source_ip TEXT,
-            destination_ip TEXT,
-            attack_type TEXT,
-            severity TEXT,
-            description TEXT
+def init_db():
+    with closing(_get_conn()) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                src_ip TEXT,
+                dst_ip TEXT,
+                protocol TEXT,
+                detection_type TEXT,
+                severity TEXT,
+                description TEXT
+            )
+            """
         )
-    """)
-
-    conn.commit()
-    conn.close()
+        conn.commit()
 
 
-def add_event(source_ip, destination_ip, attack_type,
-              severity, description):
-
-    conn = get_connection()
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    conn.execute("""
-        INSERT INTO events
-        (timestamp, source_ip, destination_ip,
-         attack_type, severity, description)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        timestamp,
-        source_ip,
-        destination_ip,
-        attack_type,
-        severity,
-        description
-    ))
-
-    conn.commit()
-    conn.close()
+def insert_alert(alert: dict):
+    with closing(_get_conn()) as conn:
+        conn.execute(
+            """
+            INSERT INTO alerts
+                (timestamp, src_ip, dst_ip, protocol, detection_type, severity, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                alert["timestamp"],
+                alert.get("src_ip"),
+                alert.get("dst_ip"),
+                alert.get("protocol"),
+                alert.get("detection_type"),
+                alert.get("severity"),
+                alert.get("description"),
+            ),
+        )
+        conn.commit()
 
 
-def get_events():
-
-    conn = get_connection()
-
-    events = conn.execute("""
-        SELECT *
-        FROM events
-        ORDER BY id DESC
-    """).fetchall()
-
-    conn.close()
-
-    return events
+def get_recent_alerts(limit: int = 50):
+    with closing(_get_conn()) as conn:
+        rows = conn.execute(
+            "SELECT * FROM alerts ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
-def get_statistics():
+def get_alert_counts():
+    with closing(_get_conn()) as conn:
+        total = conn.execute("SELECT COUNT(*) AS c FROM alerts").fetchone()["c"]
+        counts = {"total": total, "High": 0, "Medium": 0, "Low": 0}
+        for row in conn.execute(
+            "SELECT severity, COUNT(*) AS c FROM alerts GROUP BY severity"
+        ):
+            if row["severity"] in counts:
+                counts[row["severity"]] = row["c"]
+        return counts
 
-    conn = get_connection()
 
-    total = conn.execute(
-        "SELECT COUNT(*) FROM events"
-    ).fetchone()[0]
-
-    port_scans = conn.execute(
-        "SELECT COUNT(*) FROM events WHERE attack_type='Port Scan'"
-    ).fetchone()[0]
-
-    syn_floods = conn.execute(
-        "SELECT COUNT(*) FROM events WHERE attack_type='SYN Flood'"
-    ).fetchone()[0]
-
-    high = conn.execute(
-        "SELECT COUNT(*) FROM events WHERE severity='High'"
-    ).fetchone()[0]
-
-    conn.close()
-
-    return {
-        "total": total,
-        "port_scans": port_scans,
-        "syn_floods": syn_floods,
-        "high": high
-    }
+def clear_alerts():
+    with closing(_get_conn()) as conn:
+        conn.execute("DELETE FROM alerts")
+        conn.commit()

@@ -1,129 +1,134 @@
-<!DOCTYPE html>
-<html>
-
+<!doctype html>
+<html lang="en">
 <head>
-
-    <title>Network IDS Dashboard</title>
-
-    <link rel="stylesheet"
-          href="{{ url_for('static',
-          filename='style.css') }}">
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NIDS Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
-
 <body>
-
-<div class="container">
-
-    <h1>Network Intrusion Detection System</h1>
-
-    <p class="subtitle">
-        Real-Time Network Security Monitoring
-    </p>
-
-
-    <!-- STATISTICS -->
-
-    <div class="cards">
-
-        <div class="card">
-            <h3>Total Threats</h3>
-            <p id="total">
-                {{ statistics.total }}
-            </p>
-        </div>
-
-
-        <div class="card">
-            <h3>Port Scans</h3>
-            <p id="port_scans">
-                {{ statistics.port_scans }}
-            </p>
-        </div>
-
-
-        <div class="card">
-            <h3>SYN Floods</h3>
-            <p id="syn_floods">
-                {{ statistics.syn_floods }}
-            </p>
-        </div>
-
-
-        <div class="card">
-            <h3>High Severity</h3>
-            <p id="high">
-                {{ statistics.high }}
-            </p>
-        </div>
-
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">&#9679;</span>
+      <div>
+        <h1>Network Intrusion Detection System</h1>
+        <p class="subtitle">Scapy + Flask &mdash; Live Packet Monitoring &amp; Threat Detection</p>
+      </div>
     </div>
+    <div class="topbar-controls">
+      <div id="statusPill" class="status-pill stopped">
+        <span class="dot"></span>
+        <span id="statusText">STOPPED</span>
+      </div>
+      <button id="startBtn" class="btn btn-start">&#9654; Start Monitoring</button>
+      <button id="stopBtn" class="btn btn-stop" disabled>&#9632; Stop Monitoring</button>
+    </div>
+  </header>
 
+  <main class="grid">
+    <div id="errorBanner" class="error-banner" hidden></div>
 
-    <!-- EVENTS -->
+    <!-- KPI Row -->
+    <section class="kpi-row">
+      <div class="card kpi">
+        <span class="kpi-label">Packets Captured</span>
+        <span class="kpi-value" id="kpiPackets">0</span>
+      </div>
+      <div class="card kpi">
+        <span class="kpi-label">Packets / sec</span>
+        <span class="kpi-value" id="kpiPps">0</span>
+      </div>
+      <div class="card kpi">
+        <span class="kpi-label">Uptime</span>
+        <span class="kpi-value" id="kpiUptime">00:00:00</span>
+      </div>
+      <div class="card kpi">
+        <span class="kpi-label">Total Alerts</span>
+        <span class="kpi-value alert-total" id="kpiAlerts">0</span>
+      </div>
+    </section>
 
-    <h2>Detected Threats</h2>
+    <!-- Protocol + Severity row -->
+    <section class="two-col">
+      <div class="card">
+        <h2>Protocol Distribution</h2>
+        <div class="proto-stats">
+          <div class="proto-stat tcp">
+            <span class="proto-name">TCP</span>
+            <span class="proto-count" id="protoTcp">0</span>
+          </div>
+          <div class="proto-stat udp">
+            <span class="proto-name">UDP</span>
+            <span class="proto-count" id="protoUdp">0</span>
+          </div>
+          <div class="proto-stat icmp">
+            <span class="proto-name">ICMP</span>
+            <span class="proto-count" id="protoIcmp">0</span>
+          </div>
+          <div class="proto-stat other">
+            <span class="proto-name">OTHER</span>
+            <span class="proto-count" id="protoOther">0</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="protocolChart"></canvas>
+        </div>
+      </div>
 
-    <table>
+      <div class="card">
+        <h2>Alert Severity</h2>
+        <div class="severity-stats">
+          <div class="sev-stat high">
+            <span class="sev-label">High</span>
+            <span class="sev-count" id="sevHigh">0</span>
+          </div>
+          <div class="sev-stat medium">
+            <span class="sev-label">Medium</span>
+            <span class="sev-count" id="sevMedium">0</span>
+          </div>
+          <div class="sev-stat low">
+            <span class="sev-label">Low</span>
+            <span class="sev-count" id="sevLow">0</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="severityChart"></canvas>
+        </div>
+      </div>
+    </section>
 
-        <thead>
+    <!-- Alerts table -->
+    <section class="card alerts-card">
+      <div class="alerts-header">
+        <h2>Recent Alerts</h2>
+        <button id="clearBtn" class="btn btn-clear">Clear Alerts</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Severity</th>
+              <th>Detection Type</th>
+              <th>Source IP</th>
+              <th>Destination IP</th>
+              <th>Protocol</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="alertsBody">
+            <tr class="empty-row"><td colspan="7">No alerts yet. Start monitoring to begin capture.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
-        <tr>
+  <footer class="footer">
+    Local demo system &mdash; Python / Scapy / Flask. Not for production use.
+  </footer>
 
-            <th>Time</th>
-            <th>Source IP</th>
-            <th>Destination IP</th>
-            <th>Attack</th>
-            <th>Severity</th>
-            <th>Description</th>
-
-        </tr>
-
-        </thead>
-
-
-        <tbody id="events">
-
-        {% for event in events %}
-
-        <tr>
-
-            <td>{{ event.timestamp }}</td>
-
-            <td>{{ event.source_ip }}</td>
-
-            <td>{{ event.destination_ip }}</td>
-
-            <td>{{ event.attack_type }}</td>
-
-            <td>
-
-                <span class="severity
-                    {{ event.severity|lower }}">
-
-                    {{ event.severity }}
-
-                </span>
-
-            </td>
-
-            <td>{{ event.description }}</td>
-
-        </tr>
-
-        {% endfor %}
-
-        </tbody>
-
-    </table>
-
-</div>
-
-
-<script src="{{ url_for('static',
-filename='dashboard.js') }}">
-</script>
-
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
-
 </html>
