@@ -1,98 +1,62 @@
-# Network Intrusion Detection System (NIDS) -- Demo
+# Network Intrusion Detection System (NIDS) -- NextGen
 
-A simple, local NIDS built with **Python + Scapy + Flask**. Captures live
-traffic, applies threshold-based detection rules (port scan, SYN flood,
-ICMP flood, suspicious ports), and shows everything on a live dashboard.
-Includes a safe local traffic generator (`demo.py`) so you can trigger every
-alert on demand without any real attack traffic.
+A modern, multi-layered local NIDS built with **Python + Scapy + Flask + Scikit-Learn**. It captures live traffic and analyzes it using three distinct detection layers:
+1. **Threshold-based Signatures:** Catch brute-force volumetric attacks like SYN Floods, ICMP Floods, UDP Floods, and Port Scans.
+2. **Deep Packet Inspection (L7):** Reads packet payloads to catch Application-layer exploits like SQL Injection (SQLi), Cross-Site Scripting (XSS), Command Injection, Path Traversal, and Malware C2 beacons.
+3. **Machine Learning AI Engine (Isolation Forest):** Learns your network's baseline traffic automatically and flags anomalous traffic shapes/speeds that evade hardcoded rules.
+
+Includes a safe local traffic generator (`demo.py`) so you can trigger every alert on demand without any real attack traffic.
 
 ## Project structure
 
 ```
-app.py          Flask server + JSON API
+app.py          Flask server + JSON API (runs on port 5001)
 sniffer.py      Background packet capture (Scapy AsyncSniffer, own thread)
-detector.py     Threshold-based detection rules
+detector.py     ML Engine + Thresholds + DPI Rules
 database.py     SQLite alert storage
 config.py       Thresholds / suspicious ports
-demo.py         Safe local traffic generator (portscan / synflood / icmpflood)
+demo.py         Safe local traffic generator (portscan / floods / dpi / stealth)
 templates/      dashboard.html
 static/         style.css, script.js
 ```
 
-## One-time setup (do this first, it's the only fiddly part)
+## Running the Project (macOS / Linux)
 
-1. **Install Npcap** (required for Scapy to capture packets on Windows):
-   https://npcap.com/#download
-   - During install, check **"Install Npcap in WinPcap API-compatible Mode"**.
-   - Leave loopback support enabled (default) -- this lets the sniffer see
-     traffic sent to `127.0.0.1`.
-
-2. **Install Python dependencies:**
+1. **Install Dependencies:**
+   ```bash
+   sudo pip install -r requirements.txt scikit-learn numpy
    ```
-   pip install -r requirements.txt
+   *(Note: The AI models require scikit-learn to be installed for the root user since the sniffer requires sudo).*
+
+2. **Start the NIDS Server:**
+   Open a terminal and run:
+   ```bash
+   sudo python app.py
+   ```
+   Open http://127.0.0.1:5001 in your browser and click **Start Monitoring**. Wait a few seconds for the AI to train its baseline.
+
+3. **Launch Test Attacks:**
+   Open a second terminal and run any of the simulation modules:
+   ```bash
+   sudo python3 demo.py portscan
+   sudo python3 demo.py synflood
+   sudo python3 demo.py icmpflood
+   sudo python3 demo.py udpflood
+   sudo python3 demo.py stealthscan
+   sudo python3 demo.py dpi
+   sudo python3 demo.py all
    ```
 
-3. **Run everything as Administrator.** Both `app.py` and `demo.py` need
-   raw packet access, which Windows only grants to elevated processes.
-   Open PowerShell **as Administrator**, `cd` into this folder, and use
-   that terminal for both commands below.
+## How Detection Works (For Report/Viva)
 
-## Running the demo
-
-**Terminal 1 (Administrator):**
-```
-python app.py
-```
-Open http://127.0.0.1:5000 in your browser. Click **Start Monitoring**.
-- If you see a red error banner about Npcap/Administrator, that step above
-  wasn't done -- fix it and restart `app.py`.
-
-**Terminal 2 (Administrator), while monitoring is running:**
-```
-python demo.py portscan
-python demo.py synflood
-python demo.py icmpflood
-python demo.py all
-```
-Each command prints `[DEMO/TEST TRAFFIC]` lines and only targets your own
-machine (`127.0.0.1` by default). Watch the dashboard -- alerts should
-appear within a few seconds of each run.
-
-## What to show your professor
-
-1. Start monitoring -> status pill turns green (RUNNING), packet counters climb.
-2. Run `python demo.py portscan` -> a **Port Scan** alert (and a couple of
-   **Suspicious Port Activity** alerts for ports like 22/3389) appear.
-3. Run `python demo.py synflood` -> a **SYN Flood** alert appears.
-4. Run `python demo.py icmpflood` -> an **ICMP Flood** alert appears.
-5. Point out the protocol/severity charts and the alert table (source IP,
-   destination IP, protocol, detection type, severity, description, time).
-6. Stop monitoring to show the start/stop control works.
-
-## How detection works (for the report/viva)
-
-All rules are simple sliding-window counters per source IP, tuned in
-`config.py`:
-
-- **Port Scan**: >= 15 distinct destination ports from one source IP within 5s.
-- **SYN Flood**: >= 40 TCP SYN packets (SYN set, ACK clear) from one source IP within 5s.
-- **ICMP Flood**: >= 30 ICMP echo requests from one source IP within 5s.
-- **Suspicious Port Activity**: any traffic to ports 21/22/23/445/3389 --
-  flagged as suspicious, not auto-labeled a confirmed attack.
-
-Each source IP + detection type has an 8-second alert cooldown so one
-sustained attack doesn't spam duplicate rows.
-
-## Troubleshooting
-
-- **Packet count stuck at 0 after Start Monitoring**: you're not running as
-  Administrator, or Npcap isn't installed. Check the red banner on the
-  dashboard for the exact message.
-- **`demo.py` throws `PermissionError`**: same cause -- re-run in an
-  Administrator terminal.
-- **No alerts from `demo.py` targeting `127.0.0.1`**: some environments
-  don't route loopback traffic through the interfaces Scapy sniffs. As a
-  fallback, find your machine's LAN IP (`ipconfig`) and target that instead:
-  `python demo.py portscan --target <your-lan-ip>`.
-- **Port already in use**: another process is on port 5000. Change the port
-  in the last line of `app.py`.
+1. **Volumetric Thresholds (`config.py`)**:
+   - Simple sliding-window counters for Source IPs.
+   - Example: >= 40 TCP SYN packets or >= 50 UDP packets in 5 seconds triggers a flood alert.
+2. **Stealth Scans**:
+   - Checks the raw TCP flags for impossible combinations used by nmap (e.g., NULL, XMAS, FIN scans).
+3. **Deep Packet Inspection (DPI)**:
+   - Converts raw byte payloads to UTF-8 and scans against a hardcoded signature dictionary (e.g., `<script>`, `union select`, `../`, `nc -e`).
+4. **Machine Learning (Isolation Forest)**:
+   - Tracks the Exponential Moving Average (EMA) of Inter-Arrival Time (IAT) and packet lengths.
+   - Learns the baseline dynamically during the first 300 packets.
+   - Flags sudden mathematical shifts in traffic shape (like a perfectly timed Python `for` loop in an attack script) using Scikit-Learn's `IsolationForest` with `auto` contamination.

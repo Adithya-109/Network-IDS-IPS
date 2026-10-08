@@ -25,7 +25,7 @@ import argparse
 import sys
 import time
 
-from scapy.all import IP, TCP, ICMP, send, RandShort
+from scapy.all import IP, TCP, UDP, ICMP, send, RandShort, Raw
 
 BANNER = "[DEMO/TEST TRAFFIC]"
 
@@ -57,6 +57,41 @@ def run_icmpflood(target, count=100):
     send(pkt, count=count, inter=0.02, verbose=False)
     print(f"{BANNER} ICMP flood traffic complete.")
 
+def run_udpflood(target, count=100):
+    print(f"{BANNER} UDP flood -> {target}:53 ({count} packets)")
+    pkt = IP(dst=target) / UDP(dport=53, sport=RandShort())
+    send(pkt, count=count, inter=0.01, verbose=False)
+    print(f"{BANNER} UDP flood traffic complete.")
+
+def run_stealthscan(target):
+    print(f"{BANNER} TCP Stealth Scans -> {target}")
+    scans = [
+        ("NULL Scan", 0),
+        ("FIN Scan", 0x01),
+        ("XMAS Scan", 0x29) # FIN | PSH | URG
+    ]
+    for name, flag in scans:
+        print(f"{BANNER}   Sending {name}...")
+        pkt = IP(dst=target) / TCP(dport=80, flags=flag)
+        send(pkt, verbose=False)
+        time.sleep(0.5)
+    print(f"{BANNER} Stealth scan traffic complete.")
+
+
+def run_dpi_test(target):
+    print(f"{BANNER} Deep Packet Inspection (DPI) Test -> {target}:80")
+    payloads = [
+        b"GET /login?user=admin' OR '1'='1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+        b"POST /comment HTTP/1.1\r\n\r\n<script>alert('XSS')</script>",
+        b"GET /api/exec?cmd=/bin/sh HTTP/1.1\r\n\r\n"
+    ]
+    for i, p in enumerate(payloads, 1):
+        pkt = IP(dst=target) / TCP(dport=80, flags="PA", sport=RandShort()) / Raw(load=p)
+        send(pkt, verbose=False)
+        print(f"{BANNER}   Sent Malicious Payload {i}/3")
+        time.sleep(0.5)
+    print(f"{BANNER} DPI traffic complete.")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -64,7 +99,7 @@ def main():
     )
     parser.add_argument(
         "mode",
-        choices=["portscan", "synflood", "icmpflood", "all"],
+        choices=["portscan", "synflood", "icmpflood", "udpflood", "stealthscan", "dpi", "all"],
         help="Which attack pattern to simulate.",
     )
     parser.add_argument(
@@ -86,6 +121,15 @@ def main():
             time.sleep(1)
         if args.mode in ("icmpflood", "all"):
             run_icmpflood(args.target)
+            time.sleep(1)
+        if args.mode in ("udpflood", "all"):
+            run_udpflood(args.target)
+            time.sleep(1)
+        if args.mode in ("stealthscan", "all"):
+            run_stealthscan(args.target)
+            time.sleep(1)
+        if args.mode in ("dpi", "all"):
+            run_dpi_test(args.target)
     except PermissionError:
         print(
             "\nPermissionError: sending raw packets needs Administrator rights.\n"

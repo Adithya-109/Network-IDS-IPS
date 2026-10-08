@@ -17,6 +17,10 @@ SYN_FLOOD_WINDOW = 5
 ICMP_FLOOD_THRESHOLD = 30
 ICMP_FLOOD_WINDOW = 5
 
+# UDP flood: N UDP packets from the same source IP within WINDOW seconds
+UDP_FLOOD_THRESHOLD = 50
+UDP_FLOOD_WINDOW = 5
+
 # Seconds to wait before re-alerting on the same (src_ip, detection_type) pair,
 # so one sustained attack doesn't flood the alert table with duplicates.
 ALERT_COOLDOWN = 8

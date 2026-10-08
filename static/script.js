@@ -93,6 +93,12 @@ async function pollStats() {
     setRunning(data.running);
     renderError(data.error);
     el("kpiPackets").textContent = data.packet_count.toLocaleString();
+    
+    const webPackets = data.web_count || 0;
+    const testPackets = Math.max(0, data.packet_count - webPackets);
+    el("kpiWebPackets").textContent = webPackets.toLocaleString();
+    el("kpiTestPackets").textContent = testPackets.toLocaleString();
+
     el("kpiPps").textContent = data.pps;
     el("kpiUptime").textContent = fmtUptime(data.uptime);
 

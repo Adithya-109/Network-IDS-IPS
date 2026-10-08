@@ -13,7 +13,7 @@ from detector import DetectionEngine
 
 # Imported lazily-ish at module load; Scapy prints a runtime warning on some
 # systems if certain optional dependencies are missing, which is harmless.
-from scapy.all import AsyncSniffer, get_if_list, conf, IP, TCP, UDP, ICMP
+from scapy.all import AsyncSniffer, get_if_list, conf, IP, TCP, UDP, ICMP, Raw
 
 
 class SnifferService:
@@ -26,6 +26,7 @@ class SnifferService:
         self.stats = {
             "running": False,
             "packet_count": 0,
+            "web_count": 0,
             "tcp_count": 0,
             "udp_count": 0,
             "icmp_count": 0,
@@ -58,11 +59,16 @@ class SnifferService:
         dport = None
         is_syn = False
 
+        is_web = False
+
         if TCP in pkt:
             proto_name = "TCP"
             dport = int(pkt[TCP].dport)
+            sport = int(pkt[TCP].sport)
             flags = pkt[TCP].flags
             is_syn = bool(flags & 0x02) and not bool(flags & 0x10)  # SYN set, ACK clear
+            if sport == 5001 or dport == 5001:
+                is_web = True
         elif UDP in pkt:
             proto_name = "UDP"
             dport = int(pkt[UDP].dport)
@@ -75,23 +81,46 @@ class SnifferService:
                 self.stats[count_key] += 1
             else:
                 self.stats["other_count"] += 1
+            if is_web:
+                self.stats["web_count"] += 1
 
         alerts = []
+        payload_data = None
+        if Raw in pkt:
+            payload_data = pkt[Raw].load
+
         if proto_name == "TCP" and dport is not None:
-            a = self.detector.check_port_scan(src_ip, dport, now)
+            a = self.detector.check_stealth_scan(src_ip, dport, flags, now)
             if a:
                 alerts.append(a)
+                
             if is_syn:
+                a = self.detector.check_port_scan(src_ip, dport, now)
+                if a:
+                    alerts.append(a)
                 a = self.detector.check_syn_flood(src_ip, now)
                 if a:
                     alerts.append(a)
             a = self.detector.check_suspicious_port(src_ip, dport, now)
             if a:
                 alerts.append(a)
+            if payload_data:
+                a = self.detector.check_dpi_payload(src_ip, dport, payload_data, now)
+                if a:
+                    alerts.append(a)
         elif proto_name == "ICMP":
             a = self.detector.check_icmp_flood(src_ip, now)
             if a:
                 alerts.append(a)
+        elif proto_name == "UDP":
+            a = self.detector.check_udp_flood(src_ip, now)
+            if a:
+                alerts.append(a)
+                
+        # Machine Learning Anomaly Detection (All packets)
+        a = self.detector.check_ml_anomaly(src_ip, proto_name, len(pkt), now)
+        if a:
+            alerts.append(a)
 
         for a in alerts:
             a["timestamp"] = now
@@ -122,11 +151,11 @@ class SnifferService:
                     pass
                 self._draining_sniffer = None
 
-            if not conf.use_pcap:
+            if not (conf.use_pcap or getattr(conf, "use_bpf", False)):
                 message = (
-                    "No packet capture backend found (Npcap is not installed, or "
-                    "this app is not running as Administrator). Install Npcap from "
-                    "https://npcap.com/#download and re-run as Administrator."
+                    "No packet capture backend found (Npcap/libpcap/bpf is missing, or "
+                    "this app is not running with Administrator/root privileges). "
+                    "On Windows, install Npcap. On Mac/Linux, run with sudo."
                 )
                 self.stats["error"] = message
                 return False, message
@@ -139,6 +168,7 @@ class SnifferService:
             self.stats.update(
                 {
                     "packet_count": 0,
+                    "web_count": 0,
                     "tcp_count": 0,
                     "udp_count": 0,
                     "icmp_count": 0,
@@ -158,7 +188,7 @@ class SnifferService:
                 self._sniffer = AsyncSniffer(
                     prn=self._handle_packet,
                     store=False,
-                    iface=ifaces if ifaces else None,
+                    iface="lo0",
                 )
                 self._sniffer.start()
             except Exception as exc:
