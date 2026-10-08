@@ -93,13 +93,37 @@ def run_dpi_test(target):
     print(f"{BANNER} DPI traffic complete.")
 
 
+def run_continuous(target, interval):
+    print(f"{BANNER} Starting continuous attack simulation against {target} every {interval}s")
+    print(f"{BANNER} Press Ctrl+C to stop.")
+    try:
+        while True:
+            print(f"\n{BANNER} --- Starting new attack cycle ---")
+            run_portscan(target)
+            time.sleep(1)
+            run_synflood(target, count=50)
+            time.sleep(1)
+            run_icmpflood(target, count=40)
+            time.sleep(1)
+            run_udpflood(target, count=60)
+            time.sleep(1)
+            run_stealthscan(target)
+            time.sleep(1)
+            run_dpi_test(target)
+            
+            print(f"\n{BANNER} Cycle complete. Sleeping for {interval} seconds...")
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print(f"\n{BANNER} Continuous mode stopped.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate safe, local DEMO/TEST traffic to trigger NIDS alerts."
     )
     parser.add_argument(
         "mode",
-        choices=["portscan", "synflood", "icmpflood", "udpflood", "stealthscan", "dpi", "all"],
+        choices=["portscan", "synflood", "icmpflood", "udpflood", "stealthscan", "dpi", "all", "continuous"],
         help="Which attack pattern to simulate.",
     )
     parser.add_argument(
@@ -107,12 +131,22 @@ def main():
         default="127.0.0.1",
         help="Target IP -- keep this at 127.0.0.1 or another IP of your own machine. Default: 127.0.0.1",
     )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=15,
+        help="Seconds to wait between cycles in continuous mode (default: 15).",
+    )
     args = parser.parse_args()
 
     print(f"{BANNER} Target: {args.target}  (make sure this is YOUR OWN machine)")
     print(f"{BANNER} Make sure the NIDS dashboard is running and monitoring is started.\n")
 
     try:
+        if args.mode == "continuous":
+            run_continuous(args.target, args.interval)
+            return
+
         if args.mode in ("portscan", "all"):
             run_portscan(args.target)
             time.sleep(1)

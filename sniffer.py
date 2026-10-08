@@ -117,10 +117,11 @@ class SnifferService:
             if a:
                 alerts.append(a)
                 
-        # Machine Learning Anomaly Detection (All packets)
-        a = self.detector.check_ml_anomaly(src_ip, proto_name, len(pkt), now)
-        if a:
-            alerts.append(a)
+        # Machine Learning Anomaly Detection (Fallback - only check if no rules triggered)
+        if not alerts:
+            a = self.detector.check_ml_anomaly(src_ip, proto_name, len(pkt), now)
+            if a:
+                alerts.append(a)
 
         for a in alerts:
             a["timestamp"] = now

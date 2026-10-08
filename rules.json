@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "description": "NIDS Threat Signatures and Indicators of Compromise (IoCs)"
+  },
+  "suspicious_ports": {
+    "21": "FTP",
+    "22": "SSH",
+    "23": "Telnet",
+    "445": "SMB",
+    "3389": "RDP"
+  },
+  "dpi_signatures": [
+    {
+      "name": "SQL Injection (SQLi)",
+      "patterns": ["union select", "1'='1", "select * from"],
+      "severity": "High"
+    },
+    {
+      "name": "Cross-Site Scripting (XSS)",
+      "patterns": ["<script>", "alert(", "onerror="],
+      "severity": "High"
+    },
+    {
+      "name": "Command Injection / Shellcode",
+      "patterns": ["cmd.exe", "/bin/sh", "eval("],
+      "severity": "High"
+    },
+    {
+      "name": "Directory Traversal (Path Injection)",
+      "patterns": ["../", "..\\\\", "%2e%2e%2f"],
+      "severity": "High"
+    },
+    {
+      "name": "Malware/Botnet Command Execution",
+      "patterns": ["wget ", "curl ", "nc -e"],
+      "severity": "High"
+    }
+  ]
+}

@@ -1,62 +1,69 @@
-# Network Intrusion Detection System (NIDS) -- NextGen
+# Network Intrusion Detection System (NIDS)
 
-A modern, multi-layered local NIDS built with **Python + Scapy + Flask + Scikit-Learn**. It captures live traffic and analyzes it using three distinct detection layers:
-1. **Threshold-based Signatures:** Catch brute-force volumetric attacks like SYN Floods, ICMP Floods, UDP Floods, and Port Scans.
-2. **Deep Packet Inspection (L7):** Reads packet payloads to catch Application-layer exploits like SQL Injection (SQLi), Cross-Site Scripting (XSS), Command Injection, Path Traversal, and Malware C2 beacons.
-3. **Machine Learning AI Engine (Isolation Forest):** Learns your network's baseline traffic automatically and flags anomalous traffic shapes/speeds that evade hardcoded rules.
+A modern, multi-layered Intrusion Detection System built with **Python, Scapy, Flask, and Scikit-Learn**. It captures live network traffic and analyzes it using three distinct, enterprise-grade detection layers to identify both known exploits and zero-day anomalies.
 
-Includes a safe local traffic generator (`demo.py`) so you can trigger every alert on demand without any real attack traffic.
+## Core Features
 
-## Project structure
+1. **Rule-Based Threat Intelligence (DPI):** 
+   - Dynamically loads signatures from an external `rules.json` file—matching industry standards for decoupled threat intelligence.
+   - Performs Deep Packet Inspection (L7) to catch application-layer exploits like SQL Injection (SQLi), Cross-Site Scripting (XSS), Command Injection, Path Traversal, and Malware C2 beacons.
+2. **Volumetric & State Analysis:** 
+   - Uses sliding-window thresholds to catch brute-force network attacks (SYN Floods, ICMP Floods, UDP Floods, and Port Scans).
+   - Inspects raw TCP headers for illegal flag combinations to detect stealth reconnaissance (NULL, XMAS, and FIN scans).
+3. **Machine Learning Anomaly Engine (Zero-Day Catcher):** 
+   - Utilizes Scikit-Learn's `IsolationForest` to learn your network's unique baseline automatically.
+   - Operates as a fallback layer: if an attack evades all known JSON signatures, the AI flags mathematically anomalous traffic shapes, speeds, and packet sizes.
 
+Includes a safe local traffic generator (`demo.py`) so you can trigger every alert on demand to test the system without requiring actual malware.
+
+## Architecture
+
+- **`app.py`**: Flask server and JSON API (runs on port 5001). Provides the real-time web dashboard.
+- **`sniffer.py`**: Background packet capture engine utilizing Scapy's AsyncSniffer.
+- **`detector.py`**: The core detection engine running ML Analysis, Thresholds, and DPI.
+- **`rules.json`**: The decoupled Threat Intelligence database containing malware signatures and suspicious ports.
+- **`database.py`**: SQLite storage for persisting alerts.
+- **`demo.py`**: Safe local traffic generator with continuous simulation capabilities.
+
+## Installation & Usage (macOS / Linux)
+
+### 1. Install Dependencies
+
+You will need `scikit-learn` and `numpy` installed for the root user, as the raw socket sniffer requires root privileges (`sudo`).
+
+```bash
+sudo pip install -r requirements.txt scikit-learn numpy
 ```
-app.py          Flask server + JSON API (runs on port 5001)
-sniffer.py      Background packet capture (Scapy AsyncSniffer, own thread)
-detector.py     ML Engine + Thresholds + DPI Rules
-database.py     SQLite alert storage
-config.py       Thresholds / suspicious ports
-demo.py         Safe local traffic generator (portscan / floods / dpi / stealth)
-templates/      dashboard.html
-static/         style.css, script.js
+
+### 2. Start the NIDS Server
+
+Open a terminal and launch the background engine and web server:
+
+```bash
+sudo python app.py
+```
+Open **http://127.0.0.1:5001** in your browser and click **Start Monitoring**. Allow the system a few seconds to ingest the first 300 packets and train the ML baseline.
+
+### 3. Launch Test Attacks
+
+Open a second terminal and use the provided simulation script to generate safe, local traffic that triggers the rules.
+
+**Run individual attacks:**
+```bash
+sudo python3 demo.py portscan
+sudo python3 demo.py synflood
+sudo python3 demo.py icmpflood
+sudo python3 demo.py udpflood
+sudo python3 demo.py stealthscan
+sudo python3 demo.py dpi
 ```
 
-## Running the Project (macOS / Linux)
+**Run an automated continuous attack loop:**
+```bash
+sudo python3 demo.py continuous --interval 15
+```
+This will run in the background, routinely firing off every type of attack on a 15-second interval so you can monitor the dashboard reacting in real-time.
 
-1. **Install Dependencies:**
-   ```bash
-   sudo pip install -r requirements.txt scikit-learn numpy
-   ```
-   *(Note: The AI models require scikit-learn to be installed for the root user since the sniffer requires sudo).*
+## Adding Custom Threat Signatures
 
-2. **Start the NIDS Server:**
-   Open a terminal and run:
-   ```bash
-   sudo python app.py
-   ```
-   Open http://127.0.0.1:5001 in your browser and click **Start Monitoring**. Wait a few seconds for the AI to train its baseline.
-
-3. **Launch Test Attacks:**
-   Open a second terminal and run any of the simulation modules:
-   ```bash
-   sudo python3 demo.py portscan
-   sudo python3 demo.py synflood
-   sudo python3 demo.py icmpflood
-   sudo python3 demo.py udpflood
-   sudo python3 demo.py stealthscan
-   sudo python3 demo.py dpi
-   sudo python3 demo.py all
-   ```
-
-## How Detection Works (For Report/Viva)
-
-1. **Volumetric Thresholds (`config.py`)**:
-   - Simple sliding-window counters for Source IPs.
-   - Example: >= 40 TCP SYN packets or >= 50 UDP packets in 5 seconds triggers a flood alert.
-2. **Stealth Scans**:
-   - Checks the raw TCP flags for impossible combinations used by nmap (e.g., NULL, XMAS, FIN scans).
-3. **Deep Packet Inspection (DPI)**:
-   - Converts raw byte payloads to UTF-8 and scans against a hardcoded signature dictionary (e.g., `<script>`, `union select`, `../`, `nc -e`).
-4. **Machine Learning (Isolation Forest)**:
-   - Tracks the Exponential Moving Average (EMA) of Inter-Arrival Time (IAT) and packet lengths.
-   - Learns the baseline dynamically during the first 300 packets.
-   - Flags sudden mathematical shifts in traffic shape (like a perfectly timed Python `for` loop in an attack script) using Scikit-Learn's `IsolationForest` with `auto` contamination.
+Because the detection engine reads from `rules.json`, you can add custom signatures without touching the Python code. Simply open `rules.json`, add a new pattern array (e.g., detecting a new CVE payload string), and restart the application to instantly update the firewall's threat intelligence.

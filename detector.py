@@ -3,6 +3,8 @@ this makes it easy to reason about and to unit-test independently of packet
 capture. sniffer.py feeds it one parsed packet's fields at a time."""
 
 import time
+import json
+import os
 from collections import defaultdict, deque
 
 import config
@@ -37,6 +39,17 @@ class DetectionEngine:
             self.TRAINING_SAMPLES = 300 # Learn from the first 300 packets
             self.last_seen = defaultdict(float)
             self.smoothed_iat = defaultdict(lambda: 1.0) # Default to 1 second start
+            
+        self.rules = self._load_rules()
+
+    def _load_rules(self):
+        rules_path = os.path.join(os.path.dirname(__file__), "rules.json")
+        try:
+            with open(rules_path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[!] Warning: Failed to load rules.json: {e}")
+            return {"suspicious_ports": {}, "dpi_signatures": []}
 
     def _cooldown_ok(self, key, now):
         last = self._last_alert.get(key, 0)
@@ -144,17 +157,15 @@ class DetectionEngine:
         return None
 
     def check_suspicious_port(self, src_ip, dport, now):
-        if dport in config.SUSPICIOUS_PORTS:
+        suspicious = self.rules.get("suspicious_ports", {})
+        if str(dport) in suspicious:
             key = (src_ip, f"SUSPICIOUS_PORT_{dport}")
             if self._cooldown_ok(key, now):
-                service = config.SUSPICIOUS_PORTS[dport]
+                service = suspicious[str(dport)]
                 return {
                     "detection_type": "Suspicious Port Activity",
                     "severity": "Low",
-                    "description": (
-                        f"{src_ip} sent traffic to port {dport} ({service}) -- "
-                        "commonly targeted service, not automatically a confirmed attack"
-                    ),
+                    "description": f"{src_ip} accessed {service} port {dport} (often targeted by scanners)."
                 }
         return None
 
@@ -165,25 +176,24 @@ class DetectionEngine:
         except Exception:
             return None
         
-        signature = None
-        if "union select" in payload_str or "1'='1" in payload_str or "select * from" in payload_str:
-            signature = "SQL Injection (SQLi)"
-        elif "<script>" in payload_str or "alert(" in payload_str or "onerror=" in payload_str:
-            signature = "Cross-Site Scripting (XSS)"
-        elif "cmd.exe" in payload_str or "/bin/sh" in payload_str or "eval(" in payload_str:
-            signature = "Command Injection / Shellcode"
-        elif "../" in payload_str or "..\\\\" in payload_str or "%2e%2e%2f" in payload_str:
-            signature = "Directory Traversal (Path Injection)"
-        elif "wget " in payload_str or "curl " in payload_str or "nc -e" in payload_str:
-            signature = "Malware/Botnet Command Execution"
+        matched_rule = None
+        for rule in self.rules.get("dpi_signatures", []):
+            for pattern in rule.get("patterns", []):
+                if pattern.lower() in payload_str:
+                    matched_rule = rule
+                    break
+            if matched_rule:
+                break
 
-        if signature:
-            key = (src_ip, f"DPI_{signature}")
+        if matched_rule:
+            sig_name = matched_rule["name"]
+            severity = matched_rule.get("severity", "High")
+            key = (src_ip, f"DPI_{sig_name}")
             if self._cooldown_ok(key, now):
                 return {
                     "detection_type": "Deep Packet Inspection (L7)",
-                    "severity": "High",
-                    "description": f"{src_ip} sent malicious payload targeting port {dport}: {signature} signature matched."
+                    "severity": severity,
+                    "description": f"{src_ip} sent malicious payload targeting port {dport}: {sig_name} signature matched."
                 }
         return None
 
