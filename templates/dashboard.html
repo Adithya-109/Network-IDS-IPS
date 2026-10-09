@@ -5,7 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NIDS Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='main_theme.css') }}?v=4">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    }
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -23,6 +36,11 @@
       </div>
       <button id="startBtn" class="btn btn-start">&#9654; Start Monitoring</button>
       <button id="stopBtn" class="btn btn-stop" disabled>&#9632; Stop Monitoring</button>
+      <a href="/logout" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px;">Logout</a>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle Theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
     </div>
   </header>
 
@@ -30,7 +48,7 @@
     <div id="errorBanner" class="error-banner" hidden></div>
 
     <!-- KPI Row -->
-    <section class="kpi-row">
+    <section class="kpi-row fade-in-up" style="animation-delay: 0.1s;">
       <div class="card kpi">
         <span class="kpi-label">Packets Captured</span>
         <span class="kpi-value" id="kpiPackets">0</span>
@@ -53,10 +71,10 @@
     </section>
 
     <!-- Protocol + Severity row -->
-    <section class="two-col">
+    <section class="two-col fade-in-up" style="animation-delay: 0.2s;">
       <div class="card">
         <h2>Protocol Distribution</h2>
-        <div class="proto-stats">
+        <div class="proto-stats minimal-stats">
           <div class="proto-stat tcp">
             <span class="proto-name">TCP</span>
             <span class="proto-count" id="protoTcp">0</span>
@@ -81,7 +99,7 @@
 
       <div class="card">
         <h2>Alert Severity</h2>
-        <div class="severity-stats">
+        <div class="severity-stats minimal-stats">
           <div class="sev-stat high">
             <span class="sev-label">High</span>
             <span class="sev-count" id="sevHigh">0</span>
@@ -102,10 +120,10 @@
     </section>
 
     <!-- Alerts table -->
-    <section class="card alerts-card">
+    <section class="card alerts-card fade-in-up" style="animation-delay: 0.3s;">
       <div class="alerts-header">
         <h2>Recent Alerts</h2>
-        <button id="clearBtn" class="btn btn-clear">Clear Alerts</button>
+        <button id="clearBtn" class="btn btn-outline" style="padding: 4px 10px; font-size: 11px;">Clear Alerts</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -128,7 +146,7 @@
     </section>
   </main>
 
-  <footer class="footer">
+  <footer class="footer fade-in-up" style="animation-delay: 0.4s;">
     Local demo system &mdash; Python / Scapy / Flask. Not for production use.
   </footer>
 

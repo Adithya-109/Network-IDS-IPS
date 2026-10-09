@@ -2,17 +2,47 @@
 that the dashboard polls. Packet capture runs on a background thread
 (sniffer.SnifferService) so it never blocks these request handlers."""
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request, redirect, url_for, session
 
 import database
 import config
 from sniffer import sniffer_service
+import secrets
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.secret_key = "acm-vit-super-secret-key"
 
 
 @app.route("/")
+def index():
+    return render_template("index.html")
+
+VALID_USERNAME = "team1"
+VALID_PASSWORD = "password123"
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if username == VALID_USERNAME and password == VALID_PASSWORD:
+            session["authenticated"] = True
+            return redirect(url_for("dashboard"))
+        else:
+            error = "Incorrect username or password. Please try again."
+    return render_template("login.html", error=error)
+
+@app.route("/logout")
+def logout():
+    session.pop("authenticated", None)
+    return redirect(url_for("index"))
+
+@app.route("/dashboard")
 def dashboard():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
     return render_template("dashboard.html")
 
 

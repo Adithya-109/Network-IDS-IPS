@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIDS - Secure Your Network</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='main_theme.css') }}?v=3">
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    }
+  </script>
+</head>
+<body>
+  
+  <header class="site-header">
+    <div class="nav-pill">
+      <a href="#home">Home</a>
+      <a href="#about">About</a>
+      <a href="#features">Features</a>
+      <a href="/login" style="color: var(--acm-accent)">Sign In</a>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle Theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section id="home" class="landing-hero reveal">
+      <div class="hero-text-wrap" style="animation: fadeInUp 1s ease-out;">
+        <div class="hero-line-1">we are the</div>
+        <div class="hero-line-2">network<br>intrusion detection</div>
+        <div style="margin-top: 40px;">
+          <a href="/login" class="btn-acm">Access Dashboard &rarr;</a>
+        </div>
+      </div>
+      
+      <div style="position: absolute; bottom: 40px; right: 40px; text-align: right; font-size: 14px; opacity: 0.7;">
+        Established to secure.<br>
+        <span style="color: var(--acm-accent);">Evolving ever since.</span>
+      </div>
+    </section>
+
+    <!-- Scroll Section 1: About -->
+    <section id="about" class="info-section">
+      <div class="container reveal">
+        <div class="split-layout">
+          <div class="left-content">
+            <h2 class="section-title">ABOUT<br><span style="color: var(--acm-accent)">THE SYSTEM</span></h2>
+          </div>
+          <div class="right-content">
+            <p class="large-text">
+              Built to push boundaries and challenge conventional security monitoring. From real-time packet inspection to automated threat detection, we turn raw network data into actionable intelligence.
+            </p>
+            <p class="small-text" style="margin-top: 20px;">
+              We don't just log traffic - we analyze, detect, and alert. With a dashboard built for speed and clarity, we're here to secure your infrastructure. Because security, at its best, is proactive.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scroll Section 2: Marquee / Big Text -->
+    <section class="marquee-section reveal">
+      <div class="marquee-content">
+        <span class="marquee-text">BECAUSE SECURITY MATTERS <span class="dot-accent">•</span> </span>
+        <span class="marquee-text" style="color: transparent; -webkit-text-stroke: 2px var(--acm-text);">BECAUSE SECURITY MATTERS <span class="dot-accent">•</span> </span>
+      </div>
+    </section>
+
+    <!-- Scroll Section 3: Features (Domains) -->
+    <section id="features" class="info-section border-top">
+      <div class="container reveal">
+        <div class="split-layout">
+          <div class="left-content">
+             <div class="feature-tag">CORE CAPABILITIES</div>
+             <h2 class="section-title">CORE<br><span style="color: var(--acm-accent)">FEATURES</span></h2>
+          </div>
+          <div class="right-content feature-grid">
+            <div class="feature-box reveal-delay-1">
+              <h3>Live Packet Monitoring</h3>
+              <p>Capture and analyze network traffic in real-time using high-performance Scapy integration.</p>
+            </div>
+            <div class="feature-box reveal-delay-2">
+              <h3>Threat Detection</h3>
+              <p>Identify Port Scans, SYN Floods, and ICMP Floods instantly with severity-based alerting.</p>
+            </div>
+            <div class="feature-box reveal-delay-3">
+              <h3>Protocol Analysis</h3>
+              <p>Breakdown traffic by TCP, UDP, ICMP, and other protocols for comprehensive visibility.</p>
+            </div>
+            <div class="feature-box reveal-delay-4">
+              <h3>Interactive Dashboard</h3>
+              <p>Visualize network health, uptime, and incident logs through an intuitive web interface.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="acm-footer">
+    <div class="container text-center">
+      <h1 class="footer-brand">NIDS</h1>
+      <p style="color: var(--acm-accent); letter-spacing: 2px;">LIVE NETWORK MONITORING</p>
+    </div>
+  </footer>
+
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const reveals = document.querySelectorAll(".reveal, .reveal-delay-1, .reveal-delay-2, .reveal-delay-3, .reveal-delay-4");
+      
+      const revealOnScroll = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("active");
+            observer.unobserve(entry.target); // Optional: Stop observing once revealed
+          }
+        });
+      }, {
+        threshold: 0.15,
+        rootMargin: "0px 0px -50px 0px"
+      });
+
+      reveals.forEach(reveal => {
+        revealOnScroll.observe(reveal);
+      });
+    });
+  </script>
+</body>
+</html>
