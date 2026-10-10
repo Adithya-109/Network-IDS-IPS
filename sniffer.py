@@ -89,6 +89,11 @@ class SnifferService:
         if Raw in pkt:
             payload_data = pkt[Raw].load
 
+        if is_web:
+            # Skip analyzing the dashboard's own frontend-to-backend polling traffic
+            # so the AI doesn't flag our own requests!
+            return
+
         if proto_name == "TCP" and dport is not None:
             a = self.detector.check_stealth_scan(src_ip, dport, flags, now)
             if a:
@@ -119,7 +124,7 @@ class SnifferService:
                 
         # Machine Learning Anomaly Detection (Fallback - only check if no rules triggered)
         if not alerts:
-            a = self.detector.check_ml_anomaly(src_ip, proto_name, len(pkt), now)
+            a = self.detector.check_ml_anomaly(src_ip, dst_ip, proto_name, len(pkt), now, flags=flags if proto_name == "TCP" else None, dport=dport)
             if a:
                 alerts.append(a)
 
@@ -216,6 +221,8 @@ class SnifferService:
                 self._sniffer.stop(join=False)
             except Exception:
                 pass
+            if self.detector:
+                self.detector.stop()
             self._draining_sniffer = self._sniffer
             self._sniffer = None
             self.stats["running"] = False

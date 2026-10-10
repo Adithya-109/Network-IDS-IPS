@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "version": "1.0",
+    "version": "2.0",
     "description": "NIDS Threat Signatures and Indicators of Compromise (IoCs)"
   },
   "suspicious_ports": {
@@ -12,29 +12,73 @@
   },
   "dpi_signatures": [
     {
+      "id": "SIG-001",
       "name": "SQL Injection (SQLi)",
-      "patterns": ["union select", "1'='1", "select * from"],
-      "severity": "High"
+      "patterns": ["union select", "1'='1", "select \\* from"],
+      "severity": "High",
+      "category": "Web Attack",
+      "enabled": true
     },
     {
+      "id": "SIG-002",
       "name": "Cross-Site Scripting (XSS)",
-      "patterns": ["<script>", "alert(", "onerror="],
-      "severity": "High"
+      "patterns": ["<script>", "alert\\(", "onerror="],
+      "severity": "High",
+      "category": "Web Attack",
+      "enabled": true
     },
     {
+      "id": "SIG-003",
       "name": "Command Injection / Shellcode",
-      "patterns": ["cmd.exe", "/bin/sh", "eval("],
-      "severity": "High"
+      "patterns": ["cmd\\.exe", "/bin/sh", "eval\\("],
+      "severity": "High",
+      "category": "Command Injection",
+      "enabled": true
     },
     {
+      "id": "SIG-004",
       "name": "Directory Traversal (Path Injection)",
-      "patterns": ["../", "..\\\\", "%2e%2e%2f"],
-      "severity": "High"
+      "patterns": ["\\.\\./", "\\.\\.\\\\", "%2e%2e%2f"],
+      "severity": "High",
+      "category": "Path Traversal",
+      "enabled": true
     },
     {
+      "id": "SIG-005",
       "name": "Malware/Botnet Command Execution",
       "patterns": ["wget ", "curl ", "nc -e"],
-      "severity": "High"
+      "severity": "High",
+      "category": "Malware",
+      "enabled": true
     }
-  ]
+  ],
+  "dynamic": {
+    "enabled": true,
+    "adaptive_thresholds": {
+      "k_sigma": 3.0,
+      "warmup_samples": 50,
+      "floor_limits": {
+        "PORT_SCAN": 5,
+        "SYN_FLOOD": 10,
+        "ICMP_FLOOD": 10,
+        "UDP_FLOOD": 15
+      },
+      "ceiling_limits": {
+        "PORT_SCAN": 30,
+        "SYN_FLOOD": 100,
+        "ICMP_FLOOD": 100,
+        "UDP_FLOOD": 200
+      }
+    },
+    "model_learning": {
+      "retrain_interval_seconds": 60,
+      "window_size": 5000,
+      "contamination": 0.01
+    },
+    "reputation": {
+      "block_ttl_seconds": 300,
+      "dry_run": true,
+      "allowlist": ["127.0.0.1", "::1"]
+    }
+  }
 }

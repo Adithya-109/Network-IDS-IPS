@@ -26,10 +26,26 @@ def init_db():
                 protocol TEXT,
                 detection_type TEXT,
                 severity TEXT,
-                description TEXT
+                description TEXT,
+                score REAL,
+                method TEXT,
+                rule_id TEXT,
+                category TEXT,
+                baseline TEXT,
+                action TEXT
             )
             """
         )
+        # Handle migration if table exists without new columns
+        try:
+            conn.execute("ALTER TABLE alerts ADD COLUMN score REAL")
+            conn.execute("ALTER TABLE alerts ADD COLUMN method TEXT")
+            conn.execute("ALTER TABLE alerts ADD COLUMN rule_id TEXT")
+            conn.execute("ALTER TABLE alerts ADD COLUMN category TEXT")
+            conn.execute("ALTER TABLE alerts ADD COLUMN baseline TEXT")
+            conn.execute("ALTER TABLE alerts ADD COLUMN action TEXT")
+        except sqlite3.OperationalError:
+            pass # Columns already exist
         conn.commit()
 
 
@@ -38,8 +54,8 @@ def insert_alert(alert: dict):
         conn.execute(
             """
             INSERT INTO alerts
-                (timestamp, src_ip, dst_ip, protocol, detection_type, severity, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (timestamp, src_ip, dst_ip, protocol, detection_type, severity, description, score, method, rule_id, category, baseline, action)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 alert["timestamp"],
@@ -49,6 +65,12 @@ def insert_alert(alert: dict):
                 alert.get("detection_type"),
                 alert.get("severity"),
                 alert.get("description"),
+                alert.get("score"),
+                alert.get("method"),
+                alert.get("rule_id"),
+                alert.get("category"),
+                alert.get("baseline"),
+                alert.get("action"),
             ),
         )
         conn.commit()
